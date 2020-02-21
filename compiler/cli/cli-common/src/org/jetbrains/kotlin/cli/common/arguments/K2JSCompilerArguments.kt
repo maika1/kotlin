@@ -77,6 +77,13 @@ class K2JSCompilerArguments : CommonCompilerArguments() {
     )
     var moduleKind: String? by NullableStringFreezableVar(K2JsArgumentConstants.MODULE_PLAIN)
 
+    @Argument(
+        value = "-module-name",
+        valueDescription = "<name>",
+        description = "Specify a name for the compilation module"
+    )
+    var moduleName: String? by NullableStringFreezableVar(null)
+
     @GradleOption(DefaultValues.JsMain::class)
     @Argument(
         value = "-main",
