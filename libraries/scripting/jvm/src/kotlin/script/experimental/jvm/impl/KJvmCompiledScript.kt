@@ -39,14 +39,19 @@ internal class KJvmCompiledScriptData(
 
     companion object {
         @JvmStatic
-        private val serialVersionUID = 4L
+        private val serialVersionUID = 5L
     }
 }
 
-class KJvmCompiledScript internal constructor(
+interface IKJvmCompiledScript<out ScriptBase : Any> : CompiledScript<ScriptBase> {
+    var compiledModule: KJvmCompiledModule?
+    val scriptClassFQName: String
+}
+
+open class KJvmCompiledScript internal constructor(
     internal var data: KJvmCompiledScriptData,
-    var compiledModule: KJvmCompiledModule? // module should be null for imported (other) scripts, so only one reference to the module is kept
-) : CompiledScript, Serializable {
+    override var compiledModule: KJvmCompiledModule? // module should be null for imported (other) scripts, so only one reference to the module is kept
+) : IKJvmCompiledScript, Serializable {
 
     constructor(
         sourceLocationId: String?,
@@ -69,7 +74,7 @@ class KJvmCompiledScript internal constructor(
     override val otherScripts: List<CompiledScript>
         get() = data.otherScripts
 
-    val scriptClassFQName: String
+    override val scriptClassFQName: String
         get() = data.scriptClassFQName
 
     override val resultField: Pair<String, KotlinType>?
@@ -110,7 +115,7 @@ class KJvmCompiledScript internal constructor(
     }
 }
 
-fun KJvmCompiledScript.getOrCreateActualClassloader(evaluationConfiguration: ScriptEvaluationConfiguration): ClassLoader =
+fun IKJvmCompiledScript.getOrCreateActualClassloader(evaluationConfiguration: ScriptEvaluationConfiguration): ClassLoader =
     evaluationConfiguration[ScriptEvaluationConfiguration.jvm.actualClassLoader] ?: run {
         val module = compiledModule
             ?: throw IllegalStateException("Illegal call sequence, actualClassloader should be set before calling function on the class without module")
@@ -177,7 +182,7 @@ fun KJvmCompiledScript.toBytes(): ByteArray {
         oos = ObjectOutputStream(bos)
         oos.writeObject(this)
         oos.flush()
-        return bos.toByteArray()!!
+        return bos.toByteArray()
     } finally {
         try {
             oos?.close()
