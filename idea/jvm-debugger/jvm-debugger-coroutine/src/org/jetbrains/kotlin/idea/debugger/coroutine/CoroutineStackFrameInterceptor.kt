@@ -15,11 +15,12 @@ import com.intellij.xdebugger.impl.XDebugSessionImpl
 import com.sun.jdi.Location
 import org.jetbrains.kotlin.idea.debugger.StackFrameInterceptor
 import org.jetbrains.kotlin.idea.debugger.coroutine.proxy.ContinuationHolder
+import org.jetbrains.kotlin.idea.debugger.coroutine.proxy.SkipCoroutineStackFrameProxyImpl
 
 class CoroutineStackFrameInterceptor(val project: Project) : StackFrameInterceptor {
     override fun createStackFrame(frame: StackFrameProxyImpl, debugProcess: DebugProcessImpl, location: Location): XStackFrame? =
-        if (AsyncStacksToggleAction.isAsyncStacksEnabled(debugProcess.xdebugProcess?.session as XDebugSessionImpl))
-            ContinuationHolder.coroutineExitFrame(frame, debugProcess.debuggerContext.suspendContext as SuspendContextImpl)
+        if (AsyncStacksToggleAction.isAsyncStacksEnabled(debugProcess.xdebugProcess?.session as XDebugSessionImpl) && frame !is SkipCoroutineStackFrameProxyImpl)
+            ContinuationHolder.coroutineExitFrame(frame, debugProcess.debuggerContext.suspendContext)
         else
             null
 }
