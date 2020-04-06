@@ -13,18 +13,30 @@ import org.jetbrains.kotlin.platform.SimplePlatform
 import org.jetbrains.kotlin.platform.TargetPlatform
 import org.jetbrains.kotlin.platform.isCommon
 import org.jetbrains.kotlin.platform.js.JsPlatform
+import org.jetbrains.kotlin.platform.js.isJs
 import org.jetbrains.kotlin.platform.jvm.JvmPlatform
+import org.jetbrains.kotlin.platform.jvm.isJvm
 import org.jetbrains.kotlin.platform.konan.NativePlatform
+import org.jetbrains.kotlin.platform.konan.isNative
 import org.jetbrains.kotlin.resolve.*
 import org.jetbrains.kotlin.resolve.jvm.platform.JvmPlatformAnalyzerServices
 import org.jetbrains.kotlin.resolve.konan.platform.NativePlatformAnalyzerServices
 import java.lang.IllegalStateException
 
-fun TargetPlatform.findAnalyzerServices(project: Project): PlatformDependentAnalyzerServices = when {
-    isCommon() && project.useCompositeAnalysis -> CompositeAnalyzerServices(componentPlatforms.map { it.findAnalyzerServices() })
-    isCommon() && !project.useCompositeAnalysis -> CommonPlatformAnalyzerServices
-    else -> single().findAnalyzerServices()
-}
+fun TargetPlatform.findAnalyzerServices(project: Project): PlatformDependentAnalyzerServices =
+    if (isCommon()) {
+        if (project.useCompositeAnalysis)
+            CompositeAnalyzerServices(componentPlatforms.map { it.findAnalyzerServices() })
+        else
+            CommonPlatformAnalyzerServices
+    } else {
+        when {
+            isJvm() -> JvmPlatformAnalyzerServices
+            isJs() -> JsPlatformAnalyzerServices
+            isNative() -> NativePlatformAnalyzerServices
+            else -> throw IllegalStateException("Unknown platform $this")
+        }
+    }
 
 fun SimplePlatform.findAnalyzerServices(): PlatformDependentAnalyzerServices {
     return when (this) {
