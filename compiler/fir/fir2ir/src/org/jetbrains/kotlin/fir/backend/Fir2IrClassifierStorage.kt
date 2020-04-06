@@ -87,10 +87,10 @@ class Fir2IrClassifierStorage(
         }
     }
 
-    private fun IrClass.setThisReceiver() {
+    private fun IrClass.setThisReceiver(typeParameters: List<FirTypeParameterRef>) {
         symbolTable.enterScope(descriptor)
-        val typeArguments = this.typeParameters.map {
-            IrSimpleTypeImpl(it.symbol, false, emptyList(), emptyList())
+        val typeArguments = typeParameters.map {
+            IrSimpleTypeImpl(getCachedIrTypeParameter(it.symbol.fir)!!.symbol, false, emptyList(), emptyList())
         }
         thisReceiver = declareThisReceiverParameter(
             parent = this,
@@ -175,7 +175,7 @@ class Fir2IrClassifierStorage(
 
     fun processClassHeader(regularClass: FirRegularClass, irClass: IrClass = getCachedIrClass(regularClass)!!): IrClass {
         irClass.declareSupertypesAndTypeParameters(regularClass)
-        irClass.setThisReceiver()
+        irClass.setThisReceiver(regularClass.typeParameters)
         return irClass
     }
 
@@ -247,7 +247,7 @@ class Fir2IrClassifierStorage(
                 ).apply {
                     metadata = MetadataSource.Class(descriptor)
                     descriptor.bind(this)
-                    setThisReceiver()
+                    setThisReceiver(anonymousObject.typeParameters)
                     if (irParent != null) {
                         this.parent = irParent
                     }
