@@ -5,8 +5,12 @@
 
 package org.jetbrains.kotlin.platform
 
-inline fun <reified T : SimplePlatform> TargetPlatform.subplatformOfType(): T? = componentPlatforms.filterIsInstance<T>().singleOrNull()
-fun <T> TargetPlatform.subplatformOfType(klass: Class<T>): T? = componentPlatforms.filterIsInstance(klass).singleOrNull()
+import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
+
+// WARNING: Use with care. Some component platforms, like NativePlatform, may co-exist in multiple instances inside the same TargetPlatform.
+// See also org.jetbrains.kotlin.platform.konan.NativePlatformKt.isNative
+inline fun <reified T : SimplePlatform> TargetPlatform.subplatformOfType(): T? = componentPlatforms.firstIsInstanceOrNull<T>()
+fun <T> TargetPlatform.subplatformOfType(klass: Class<T>): T? = componentPlatforms.filterIsInstance(klass).firstOrNull()
 
 inline fun <reified T : SimplePlatform> TargetPlatform?.has(): Boolean = this != null && subplatformOfType<T>() != null
 fun <T> TargetPlatform?.has(klass: Class<T>): Boolean = this != null && subplatformOfType(klass) != null
