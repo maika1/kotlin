@@ -17,6 +17,7 @@ import org.jetbrains.jps.builders.storage.BuildDataPaths
 import org.jetbrains.jps.incremental.*
 import org.jetbrains.jps.model.java.JpsJavaExtensionService
 import org.jetbrains.jps.model.module.JpsSdkDependency
+import org.jetbrains.jps.service.JpsServiceManager
 import org.jetbrains.kotlin.build.GeneratedFile
 import org.jetbrains.kotlin.build.GeneratedJvmClass
 import org.jetbrains.kotlin.build.JvmBuildMetaInfo
@@ -186,13 +187,16 @@ class KotlinJvmModuleBuildTarget(kotlinContext: KotlinCompileContext, jpsModuleB
             }
 
             val kotlinModuleId = target.targetId
+            val allFiles = sources.allFiles
+            val commonSourceFiles = sources.crossCompiledFiles
+
             builder.addModule(
                 kotlinModuleId.name,
                 outputDir.absolutePath,
-                sources.allFiles,
+                preprocessSources(allFiles),
                 target.findSourceRoots(dirtyFilesHolder.context),
                 target.findClassPathRoots(),
-                sources.crossCompiledFiles,
+                preprocessSources(commonSourceFiles),
                 target.findModularJdkRoot(),
                 kotlinModuleId.type,
                 isTests,
@@ -207,6 +211,18 @@ class KotlinJvmModuleBuildTarget(kotlinContext: KotlinCompileContext, jpsModuleB
         val scriptFile = createTempFileForChunkModuleDesc()
         FileUtil.writeToFile(scriptFile, builder.asText().toString())
         return scriptFile
+    }
+
+    interface SourcesPreprocessor {
+        fun preprocessSources(srcFiles: List<File>): List<File>
+    }
+
+    fun preprocessSources(srcFiles: List<File>): List<File> {
+        var result = srcFiles
+        JpsServiceManager.getInstance().getExtensions(SourcesPreprocessor::class.java).forEach {
+            result = it.preprocessSources(result)
+        }
+        return result
     }
 
     private fun createTempFileForChunkModuleDesc(): File {
