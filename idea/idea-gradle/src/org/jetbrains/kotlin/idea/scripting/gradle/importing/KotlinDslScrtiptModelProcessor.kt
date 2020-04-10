@@ -8,14 +8,12 @@ package org.jetbrains.kotlin.idea.scripting.gradle.importing
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VfsUtil
-import com.intellij.openapi.vfs.VirtualFile
 import org.gradle.tooling.model.kotlin.dsl.EditorReportSeverity
 import org.gradle.tooling.model.kotlin.dsl.KotlinDslScriptsModel
 import org.jetbrains.kotlin.idea.KotlinIdeaGradleBundle
-import org.jetbrains.kotlin.idea.core.script.ScriptConfigurationManager
-import org.jetbrains.kotlin.idea.core.script.configuration.cache.ScriptConfigurationSnapshot
 import org.jetbrains.kotlin.idea.scripting.gradle.GradleScriptInputsWatcher
 import org.jetbrains.kotlin.idea.scripting.gradle.GradleScriptingSupport
+import org.jetbrains.kotlin.idea.scripting.gradle.getGradleScriptInputsStamp
 import org.jetbrains.kotlin.scripting.definitions.findScriptDefinition
 import org.jetbrains.kotlin.scripting.resolve.ScriptCompilationConfigurationWrapper
 import org.jetbrains.kotlin.scripting.resolve.VirtualFileScriptSource
@@ -37,7 +35,8 @@ fun processScriptModel(
             "Couldn't get KotlinDslScriptsModel for $projectName:\n${model.message}\n${model.stackTrace}"
         )
     } else {
-        val models = model.toListOfScriptModels()
+        val project = resolverCtx.externalSystemTaskId.findProject() ?: return
+        val models = model.toListOfScriptModels(project)
 
         saveScriptModels(resolverCtx, models)
 
@@ -51,7 +50,7 @@ private fun Collection<KotlinDslScriptModel>.containsErrors(): Boolean {
     return any { it.messages.any { it.severity == KotlinDslScriptModel.Severity.ERROR } }
 }
 
-private fun KotlinDslScriptsModel.toListOfScriptModels(): List<KotlinDslScriptModel> =
+private fun KotlinDslScriptsModel.toListOfScriptModels(project: Project): List<KotlinDslScriptModel> =
     scriptModels.map { (file, model) ->
         val messages = mutableListOf<KotlinDslScriptModel.Message>()
 
@@ -84,9 +83,14 @@ private fun KotlinDslScriptsModel.toListOfScriptModels(): List<KotlinDslScriptMo
             )
         }
 
+        // TODO: NPE
+        val virtualFile = VfsUtil.findFile(file.toPath(), true)!!
+
         // todo(KT-34440): take inputs snapshot before starting import
         KotlinDslScriptModel(
             file.absolutePath,
+            // TODO: NPE
+            getGradleScriptInputsStamp(project, virtualFile)!!,
             model.classPath.map { it.absolutePath },
             model.sourcePath.map { it.absolutePath },
             model.implicitImports,

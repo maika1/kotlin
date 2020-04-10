@@ -55,13 +55,13 @@ private class Configuration(
     private val memoryCache = SLRUMap<VirtualFile, Fat>(MAX_SCRIPTS_CACHED, MAX_SCRIPTS_CACHED)
 
     private fun String.toVirtualFile(): VirtualFile {
+        StandardFileSystems.jar()?.findFileByPath(this + "!/")?.let {
+            return it
+        }
         StandardFileSystems.local()?.findFileByPath(this)?.let {
             return it
         }
 
-        StandardFileSystems.jar()?.findFileByPath(this)?.let {
-            return it
-        }
 
         // TODO: report this somewhere, but do not throw: assert(res != null, { "Invalid classpath entry '$this': exists: ${exists()}, is directory: $isDirectory, is file: $isFile" })
 
@@ -159,7 +159,6 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
             }
         }
 
-        // todo: update unindexed roots
         // todo: remove notification, etc..
     }
 
@@ -192,7 +191,9 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
             load()
 
             rootsIndexer.transaction {
-                rootsIndexer.markNewRoot()
+                if (configuration != null) {
+                    rootsIndexer.markNewRoot()
+                }
             }
 
 
@@ -207,7 +208,6 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
                 }
             }
         }
-        // todo: update unindexed roots
         // todo: remove notification, etc..
     }
 
