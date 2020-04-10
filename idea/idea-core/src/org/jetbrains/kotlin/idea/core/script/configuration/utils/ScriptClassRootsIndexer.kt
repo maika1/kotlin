@@ -57,10 +57,14 @@ class ScriptClassRootsIndexer(val project: Project) {
     }
 
     @Synchronized
-    private fun startIndexingIfNeeded() {
+    fun startIndexingIfNeeded() {
         if (!newRootsPresent) return
         newRootsPresent = false
 
+        startIndexing()
+    }
+
+    fun startIndexing() {
         val doNotifyRootsChanged = Runnable {
             runWriteAction {
                 if (project.isDisposed) return@runWriteAction

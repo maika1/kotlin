@@ -192,7 +192,7 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
 
             rootsIndexer.transaction {
                 if (configuration != null) {
-                    rootsIndexer.markNewRoot()
+                    rootsIndexer.startIndexingIfNeeded()
                 }
             }
 
