@@ -344,7 +344,11 @@ abstract class DefaultScriptingSupportBase(val project: Project) : ScriptingSupp
             clearClassRootsCaches()
         }
 
-        updateHighlighting(listOf(file))
+        if (file in FileEditorManager.getInstance(project).openFiles) {
+            ScriptingSupportHelper.updateHighlighting(project) {
+                it == file
+            }
+        }
     }
 
     protected fun setLoadedConfiguration(
@@ -371,22 +375,6 @@ abstract class DefaultScriptingSupportBase(val project: Project) : ScriptingSupp
         cache.clear()
     }
 
-    private fun updateHighlighting(files: List<VirtualFile>) {
-        if (files.isEmpty()) return
-
-        GlobalScope.launch(EDT(project)) {
-            if (project.isDisposed) return@launch
-
-            val openFiles = FileEditorManager.getInstance(project).openFiles
-            val openScripts = files.filter { it.isValid && openFiles.contains(it) }
-
-            openScripts.forEach {
-                PsiManager.getInstance(project).findFile(it)?.let { psiFile ->
-                    DaemonCodeAnalyzer.getInstance(project).restart(psiFile)
-                }
-            }
-        }
-    }
 
     ///////////////////
     // ScriptRootsCache
@@ -417,14 +405,7 @@ abstract class DefaultScriptingSupportBase(val project: Project) : ScriptingSupp
             _classpathRoots = null
         }
 
-        val kotlinScriptDependenciesClassFinder =
-            Extensions.getArea(project).getExtensionPoint(PsiElementFinder.EP_NAME).extensions
-                .filterIsInstance<KotlinScriptDependenciesClassFinder>()
-                .single()
-
-        kotlinScriptDependenciesClassFinder.clearCache()
-
-        ScriptDependenciesModificationTracker.getInstance(project).incModificationCount()
+        ScriptingSupportHelper.updateScriptClassRootsCallback(project)
     }
 
     /**

@@ -7,14 +7,17 @@ package org.jetbrains.kotlin.idea.core.script.configuration
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.openapi.extensions.ExtensionPointName
+import com.intellij.openapi.extensions.Extensions
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiElementFinder
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.GlobalSearchScope
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import org.jetbrains.kotlin.idea.core.script.KotlinScriptDependenciesClassFinder
 import org.jetbrains.kotlin.idea.core.script.ScriptConfigurationManager
 import org.jetbrains.kotlin.idea.core.script.ScriptDependenciesModificationTracker
 import org.jetbrains.kotlin.idea.core.script.configuration.listener.ScriptChangesNotifier
@@ -148,25 +151,40 @@ class CompositeManager(val project: Project) : ScriptConfigurationManager {
         clearCaches()
 
         if (project.isOpen) {
-            val openedScripts = FileEditorManager.getInstance(project).openFiles.filterNot { it.isNonScript() }
-            updateHighlighting(openedScripts)
+            ScriptingSupportHelper.updateHighlighting(project) {
+                it.isNonScript()
+            }
         }
     }
+}
 
-    private fun updateHighlighting(files: List<VirtualFile>) {
-        if (files.isEmpty()) return
+object ScriptingSupportHelper {
+    fun updateHighlighting(project: Project, filter: (VirtualFile) -> Boolean) {
+        val openFiles = FileEditorManager.getInstance(project).openFiles
+        val openedScripts = openFiles.filter { filter(it) }
+
+        if (openedScripts.isEmpty()) return
 
         GlobalScope.launch(EDT(project)) {
             if (project.isDisposed) return@launch
 
-            val openFiles = FileEditorManager.getInstance(project).openFiles
-            val openScripts = files.filter { it.isValid && openFiles.contains(it) }
-
-            openScripts.forEach {
+            openedScripts.forEach {
                 PsiManager.getInstance(project).findFile(it)?.let { psiFile ->
                     DaemonCodeAnalyzer.getInstance(project).restart(psiFile)
                 }
             }
         }
     }
+
+    fun updateScriptClassRootsCallback(project: Project) {
+        val kotlinScriptDependenciesClassFinder =
+            Extensions.getArea(project).getExtensionPoint(PsiElementFinder.EP_NAME).extensions
+                .filterIsInstance<KotlinScriptDependenciesClassFinder>()
+                .single()
+
+        kotlinScriptDependenciesClassFinder.clearCache()
+
+        ScriptDependenciesModificationTracker.getInstance(project).incModificationCount()
+    }
+
 }

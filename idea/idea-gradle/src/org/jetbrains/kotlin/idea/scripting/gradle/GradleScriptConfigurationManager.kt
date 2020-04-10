@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.idea.scripting.gradle
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.extensions.Extensions
 import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.module.ModuleManager
@@ -18,13 +19,17 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.StandardFileSystems
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiElementFinder
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.NonClasspathDirectoriesScope
 import com.intellij.util.containers.SLRUMap
 import org.jetbrains.kotlin.codegen.inline.getOrPut
+import org.jetbrains.kotlin.idea.core.script.KotlinScriptDependenciesClassFinder
 import org.jetbrains.kotlin.idea.core.script.ScriptConfigurationManager
+import org.jetbrains.kotlin.idea.core.script.ScriptDependenciesModificationTracker
 import org.jetbrains.kotlin.idea.core.script.configuration.ScriptingSupport
+import org.jetbrains.kotlin.idea.core.script.configuration.ScriptingSupportHelper
 import org.jetbrains.kotlin.idea.core.script.configuration.listener.ScriptConfigurationUpdater
 import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRootsIndexer
 import org.jetbrains.kotlin.idea.scripting.gradle.importing.GradleKtsContext
@@ -139,27 +144,27 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
 
         val old = configuration
         val newConfiguration = Configuration(context, models)
+
         configuration = newConfiguration
 
-        rootsIndexer.transaction {
-            if (shouldReindex(old, newConfiguration)) {
-                rootsIndexer.markNewRoot()
+        configurationChangedCallback(old, newConfiguration)
+    }
+
+    private fun configurationChangedCallback(
+        old: Configuration?,
+        newConfiguration: Configuration
+    ) {
+        if (shouldReindex(old, newConfiguration)) {
+            rootsIndexer.startIndexing()
+            ScriptingSupportHelper.updateScriptClassRootsCallback(project)
+
+            // todo when there are changes, not only roots
+            ScriptingSupportHelper.updateHighlighting(project) {
+                configuration?.scriptModel(it) != null
             }
         }
 
-
-        ApplicationManager.getApplication().invokeLater {
-            val openFiles = FileEditorManager.getInstance(project).openFiles
-            val openScripts = openFiles.filter { configuration?.scriptModel(it) != null }
-
-            openScripts.forEach {
-                PsiManager.getInstance(project).findFile(it)?.let { psiFile ->
-                    DaemonCodeAnalyzer.getInstance(project).restart(psiFile)
-                }
-            }
-        }
-
-        // todo: remove notification, etc..
+        hideNotificationForProjectImport(project)
     }
 
     private fun shouldReindex(
@@ -183,32 +188,17 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
         val javaHome = File(gradleProjectSettings.gradleJvm ?: return)
 
         val models = KotlinDslScriptModels.read(project) ?: return
-        configuration = Configuration(GradleKtsContext(project, javaHome), models)
+        val newConfiguration = Configuration(GradleKtsContext(project, javaHome), models)
+
+        configuration = newConfiguration
+
+        configurationChangedCallback(null, newConfiguration)
     }
 
     init {
         ApplicationManager.getApplication().executeOnPooledThread {
             load()
-
-            rootsIndexer.transaction {
-                if (configuration != null) {
-                    rootsIndexer.startIndexingIfNeeded()
-                }
-            }
-
-
-            ApplicationManager.getApplication().invokeLater {
-                val openFiles = FileEditorManager.getInstance(project).openFiles
-                val openScripts = openFiles.filter { configuration?.scriptModel(it) != null }
-
-                openScripts.forEach {
-                    PsiManager.getInstance(project).findFile(it)?.let { psiFile ->
-                        DaemonCodeAnalyzer.getInstance(project).restart(psiFile)
-                    }
-                }
-            }
         }
-        // todo: remove notification, etc..
     }
 
     fun updateNotification(file: KtFile) {
@@ -250,6 +240,7 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
         }
     }
 
+    // todo: if project sdk changed we should reload classRoots
     override fun getFirstScriptsSdk(): Sdk? = configuration?.sdk
 
     override fun getScriptSdk(file: VirtualFile): Sdk? = configuration?.sdk
