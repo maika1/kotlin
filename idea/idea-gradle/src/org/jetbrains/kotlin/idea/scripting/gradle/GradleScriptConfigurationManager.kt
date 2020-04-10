@@ -10,8 +10,6 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.module.ModuleManager
-import com.intellij.openapi.progress.util.BackgroundTaskUtil
-import com.intellij.openapi.progress.util.BackgroundTaskUtil.executeOnPooledThread
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.ModuleRootManager
@@ -94,7 +92,7 @@ private class Configuration(
     val sources = sourcePath.toVirtualFiles()
     val sourcesScope = NonClasspathDirectoriesScope.compose(sources)
 
-    fun scriptConfiguration(file: VirtualFile): KotlinDslScriptModel? {
+    fun scriptModel(file: VirtualFile): KotlinDslScriptModel? {
         return scripts[FileUtil.toSystemDependentName(file.path)]
     }
 
@@ -104,7 +102,7 @@ private class Configuration(
 
     operator fun get(key: VirtualFile): Fat? {
         return memoryCache.getOrPut(key) {
-            val model = scriptConfiguration(key) ?: return null
+            val model = scriptModel(key) ?: return null
             val configuration = model.toScriptConfiguration(context) ?: return null
 
             val scriptSdk = sdk ?: ScriptConfigurationManager.getScriptDefaultSdk(context.project)
@@ -152,7 +150,7 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
 
         ApplicationManager.getApplication().invokeLater {
             val openFiles = FileEditorManager.getInstance(project).openFiles
-            val openScripts = openFiles.filter { configuration?.scriptConfiguration(it) != null }
+            val openScripts = openFiles.filter { configuration?.scriptModel(it) != null }
 
             openScripts.forEach {
                 PsiManager.getInstance(project).findFile(it)?.let { psiFile ->
@@ -200,7 +198,7 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
 
             ApplicationManager.getApplication().invokeLater {
                 val openFiles = FileEditorManager.getInstance(project).openFiles
-                val openScripts = openFiles.filter { configuration?.scriptConfiguration(it) != null }
+                val openScripts = openFiles.filter { configuration?.scriptModel(it) != null }
 
                 openScripts.forEach {
                     PsiManager.getInstance(project).findFile(it)?.let { psiFile ->
@@ -213,13 +211,14 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
         // todo: remove notification, etc..
     }
 
-    fun updateNotification(file: VirtualFile) {
-        val scriptModel = configuration?.scripts[file.path] ?: return
+    fun updateNotification(file: KtFile) {
+        val vFile = file.originalFile.virtualFile
+        val scriptModel = configuration?.scriptModel(vFile) ?: return
 
-        if (scriptModel.inputs.isUpToDate(project, file)) {
-            // hide notification
+        if (scriptModel.inputs.isUpToDate(project, vFile)) {
+            hideNotificationForProjectImport(project)
         } else {
-            // show notification
+            showNotificationForProjectImport(project)
         }
     }
 
@@ -239,7 +238,7 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
     }
 
     override fun hasCachedConfiguration(file: KtFile): Boolean =
-        configuration?.scriptConfiguration(file.originalFile.virtualFile) != null
+        configuration?.scriptModel(file.originalFile.virtualFile) != null
 
     override fun getOrLoadConfiguration(virtualFile: VirtualFile, preloadedKtFile: KtFile?): ScriptCompilationConfigurationWrapper? {
         val configuration = configuration
@@ -255,13 +254,18 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport {
 
     override fun getScriptSdk(file: VirtualFile): Sdk? = configuration?.sdk
 
-    // this is not required for gradle in any way
-    // unused symbol inspection should not initiate loading
     override val updater: ScriptConfigurationUpdater
         get() = object : ScriptConfigurationUpdater {
-            override fun ensureUpToDatedConfigurationSuggested(file: KtFile) = Unit
+            override fun ensureUpToDatedConfigurationSuggested(file: KtFile) {
+                // do nothing for gradle scripts
+            }
+
+            // unused symbol inspection should not initiate loading
             override fun ensureConfigurationUpToDate(files: List<KtFile>): Boolean = true
-            override fun suggestToUpdateConfigurationIfOutOfDate(file: KtFile) = Unit
+
+            override fun suggestToUpdateConfigurationIfOutOfDate(file: KtFile) {
+                updateNotification(file)
+            }
         }
 
     override fun getScriptDependenciesClassFilesScope(file: VirtualFile): GlobalSearchScope =

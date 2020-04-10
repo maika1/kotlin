@@ -29,6 +29,7 @@ import org.jetbrains.kotlin.idea.core.script.configuration.cache.*
 import org.jetbrains.kotlin.idea.core.script.configuration.cache.ScriptConfigurationFileAttributeCache
 import org.jetbrains.kotlin.idea.core.script.configuration.listener.ScriptConfigurationUpdater
 import org.jetbrains.kotlin.idea.core.script.configuration.loader.DefaultScriptConfigurationLoader
+import org.jetbrains.kotlin.idea.core.script.configuration.loader.ScriptConfigurationLoader
 import org.jetbrains.kotlin.idea.core.script.configuration.loader.ScriptConfigurationLoadingContext
 import org.jetbrains.kotlin.idea.core.script.configuration.loader.ScriptOutsiderFileConfigurationLoader
 import org.jetbrains.kotlin.idea.core.script.configuration.utils.*
@@ -36,6 +37,7 @@ import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRoot
 import org.jetbrains.kotlin.idea.core.script.settings.KotlinScriptingSettings
 import org.jetbrains.kotlin.idea.core.util.EDT
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.scripting.definitions.ScriptDefinition
 import org.jetbrains.kotlin.scripting.definitions.findScriptDefinition
 import org.jetbrains.kotlin.scripting.resolve.ScriptCompilationConfigurationWrapper
 import org.jetbrains.kotlin.scripting.resolve.ScriptReportSink
@@ -66,13 +68,16 @@ class DefaultScriptingSupport(project: Project) : DefaultScriptingSupportBase(pr
         file: KtFile,
         isFirstLoad: Boolean,
         loadEvenWillNotBeApplied: Boolean,
-        forceSync: Boolean
+        forceSync: Boolean,
+        isPostponedLoad: Boolean
     ) {
         val virtualFile = file.originalFile.virtualFile ?: return
 
         val autoReloadEnabled = KotlinScriptingSettings.getInstance(project).isAutoReloadEnabled
         val shouldLoad = isFirstLoad || loadEvenWillNotBeApplied || autoReloadEnabled
         if (!shouldLoad) return
+
+        val postponeLoading = isPostponedLoad && !autoReloadEnabled && !isFirstLoad
 
         if (!ScriptDefinitionsManager.getInstance(project).isReady()) return
         val scriptDefinition = file.findScriptDefinition() ?: return
@@ -84,20 +89,36 @@ class DefaultScriptingSupport(project: Project) : DefaultScriptingSupportBase(pr
             if (forceSync) {
                 loaders.firstOrNull { it.loadDependencies(isFirstLoad, file, scriptDefinition, loadingContext) }
             } else {
-                backgroundExecutor.ensureScheduled(virtualFile) {
-                    val cached = getCachedConfigurationState(virtualFile)
-
-                    val applied = cached?.applied
-                    if (applied != null && applied.inputs.isUpToDate(project, virtualFile)) {
-                        // in case user reverted to applied configuration
-                        suggestOrSaveConfiguration(virtualFile, applied, true)
-                    } else if (cached == null || !cached.isUpToDate(project, virtualFile)) {
-                        // don't start loading if nothing was changed
-                        // (in case we checking for up-to-date and loading concurrently)
-                        val actualIsFirstLoad = cached == null
-                        async.firstOrNull { it.loadDependencies(actualIsFirstLoad, file, scriptDefinition, loadingContext) }
+                if (postponeLoading) {
+                    LoadScriptConfigurationNotificationFactory.showNotification(virtualFile, project) {
+                        runAsyncLoaders(file, virtualFile, scriptDefinition, async, isLoadingPostponed = true)
                     }
+                } else {
+                    runAsyncLoaders(file, virtualFile, scriptDefinition, async, isLoadingPostponed = false)
                 }
+            }
+        }
+    }
+
+    private fun runAsyncLoaders(
+        file: KtFile,
+        virtualFile: VirtualFile,
+        scriptDefinition: ScriptDefinition,
+        loaders: List<ScriptConfigurationLoader>,
+        isLoadingPostponed: Boolean
+    ) {
+        backgroundExecutor.ensureScheduled(virtualFile) {
+            val cached = getCachedConfigurationState(virtualFile)
+
+            val applied = cached?.applied
+            if (applied != null && applied.inputs.isUpToDate(project, virtualFile)) {
+                // in case user reverted to applied configuration
+                suggestOrSaveConfiguration(virtualFile, applied, isLoadingPostponed)
+            } else if (cached == null || !cached.isUpToDate(project, virtualFile)) {
+                // don't start loading if nothing was changed
+                // (in case we checking for up-to-date and loading concurrently)
+                val actualIsFirstLoad = cached == null
+                loaders.firstOrNull { it.loadDependencies(actualIsFirstLoad, file, scriptDefinition, loadingContext) }
             }
         }
     }
@@ -195,7 +216,7 @@ class DefaultScriptingSupport(project: Project) : DefaultScriptingSupportBase(pr
     }
 }
 
-abstract class DefaultScriptingSupportBase(val project: Project): ScriptingSupport {
+abstract class DefaultScriptingSupportBase(val project: Project) : ScriptingSupport {
     protected val rootsIndexer = ScriptClassRootsIndexer(project)
 
     @Suppress("LeakingThis")
@@ -220,7 +241,8 @@ abstract class DefaultScriptingSupportBase(val project: Project): ScriptingSuppo
         file: KtFile,
         isFirstLoad: Boolean = getAppliedConfiguration(file.originalFile.virtualFile) == null,
         loadEvenWillNotBeApplied: Boolean = false,
-        forceSync: Boolean = false
+        forceSync: Boolean = false,
+        isPostponedLoad: Boolean = false
     )
 
     fun getCachedConfigurationState(file: VirtualFile?): ScriptConfigurationState? {
@@ -279,7 +301,8 @@ abstract class DefaultScriptingSupportBase(val project: Project): ScriptingSuppo
                         reloadOutOfDateConfiguration(
                             file,
                             isFirstLoad = state == null,
-                            loadEvenWillNotBeApplied = loadEvenWillNotBeApplied
+                            loadEvenWillNotBeApplied = loadEvenWillNotBeApplied,
+                            isPostponedLoad = isPostponedLoad
                         )
                     }
                 }

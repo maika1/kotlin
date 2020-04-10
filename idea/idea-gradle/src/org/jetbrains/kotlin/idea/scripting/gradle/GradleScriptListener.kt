@@ -23,8 +23,10 @@ open class GradleScriptListener(project: Project) : ScriptChangeListener(project
         if (useScriptConfigurationFromImportOnly()) {
             // do nothing
         } else {
-            val file = getAnalyzableKtFileForScript(vFile) ?: return
-            updater.suggestToUpdateConfigurationIfOutOfDate(file)
+            val file = getAnalyzableKtFileForScript(vFile)
+            if (file != null) {
+                updater.suggestToUpdateConfigurationIfOutOfDate(file)
+            }
         }
     }
 
