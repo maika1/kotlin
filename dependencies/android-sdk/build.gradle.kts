@@ -120,7 +120,7 @@ unzipSdkTask("platform-tools", "r28.0.1", "", toolsOsDarwin)
 unzipSdkTask("sdk-tools-$toolsOsDarwin", "4333796"/*26.1.1*/, "", "")
 unzipSdkTask("build-tools", "r23.0.1", "build-tools/23.0.1", toolsOs, buildTools, 1)
 unzipSdkTask("build-tools", "r28.0.3", "build-tools/28.0.3", toolsOs, buildTools, 1)
-unzipSdkTask("emulator-$toolsOsDarwin", "5264690", "", "", prepareTask = prepareEmulator)
+unzipSdkTask("emulator-$toolsOsDarwin", "6306047"/*30.0.5*/, "", "", prepareTask = prepareEmulator)
 unzipSdkTask("armeabi-v7a", "19", "system-images/android-19/default","r05", prepareTask = prepareEmulator)
 if (!kotlinBuildProperties.isTeamcityBuild) {
     unzipSdkTask("x86", "19", "system-images/android-19/default", "r06", prepareTask = prepareEmulator)
