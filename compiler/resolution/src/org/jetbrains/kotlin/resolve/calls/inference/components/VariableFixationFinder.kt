@@ -60,7 +60,7 @@ class VariableFixationFinder(
         READY_FOR_FIXATION_REIFIED,
     }
 
-    private fun Context.getTypeVariableReadiness(
+    fun Context.getTypeVariableReadiness(
         variable: TypeConstructorMarker,
         dependencyProvider: TypeVariableDependencyInformationProvider
     ): TypeVariableFixationReadiness = when {
@@ -73,6 +73,12 @@ class VariableFixationFinder(
         isReified(variable) -> TypeVariableFixationReadiness.READY_FOR_FIXATION_REIFIED
         else -> TypeVariableFixationReadiness.READY_FOR_FIXATION
     }
+
+    fun getTypeVariableReadiness(
+        variable: TypeConstructorMarker,
+        dependencyProvider: TypeVariableDependencyInformationProvider,
+        c: Context
+    ) = c.getTypeVariableReadiness(variable, dependencyProvider)
 
     fun isTypeVariableHasProperConstraint(context: Context, typeVariable: TypeConstructorMarker): Boolean {
         return with(context) {
@@ -127,8 +133,11 @@ class VariableFixationFinder(
         return false
     }
 
-    private fun Context.variableHasProperArgumentConstraints(variable: TypeConstructorMarker): Boolean =
+    fun Context.variableHasProperArgumentConstraints(variable: TypeConstructorMarker): Boolean =
         notFixedTypeVariables[variable]?.constraints?.any { isProperArgumentConstraint(it) } ?: false
+
+    fun variableHasProperArgumentConstraints(variable: TypeConstructorMarker, c: Context): Boolean =
+        c.notFixedTypeVariables[variable]?.constraints?.any { c.isProperArgumentConstraint(it) } ?: false
 
     private fun Context.isProperArgumentConstraint(c: Constraint) =
         isProperType(c.type)
