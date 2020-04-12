@@ -18,6 +18,7 @@ import org.jetbrains.kotlin.resolve.constants.StringValue
 import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameUnsafe
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.typeUtil.asTypeProjection
+import org.jetbrains.kotlin.types.typeUtil.createProjection
 import org.jetbrains.kotlin.types.typeUtil.replaceAnnotations
 import org.jetbrains.kotlin.utils.DFS
 import org.jetbrains.kotlin.utils.addIfNotNull
@@ -165,7 +166,8 @@ fun getFunctionTypeArgumentProjections(
         parameterTypes: List<KotlinType>,
         parameterNames: List<Name>?,
         returnType: KotlinType,
-        builtIns: KotlinBuiltIns
+        builtIns: KotlinBuiltIns,
+        f: StarProjectionForAbsentTypeParameter? = null
 ): List<TypeProjection> {
     val arguments = ArrayList<TypeProjection>(parameterTypes.size + (if (receiverType != null) 1 else 0) + 1)
 
@@ -187,7 +189,7 @@ fun getFunctionTypeArgumentProjections(
         typeToUse.asTypeProjection()
     }
 
-    arguments.add(returnType.asTypeProjection())
+    arguments.add(if (f != null) f else returnType.asTypeProjection())
 
     return arguments
 }
@@ -200,9 +202,10 @@ fun createFunctionType(
         parameterTypes: List<KotlinType>,
         parameterNames: List<Name>?,
         returnType: KotlinType,
-        suspendFunction: Boolean = false
+        suspendFunction: Boolean = false,
+        f: StarProjectionForAbsentTypeParameter? = null
 ): SimpleType {
-    val arguments = getFunctionTypeArgumentProjections(receiverType, parameterTypes, parameterNames, returnType, builtIns)
+    val arguments = getFunctionTypeArgumentProjections(receiverType, parameterTypes, parameterNames, returnType, builtIns, f)
     val size = parameterTypes.size
     val parameterCount = if (receiverType == null) size else size + 1
     val classDescriptor = if (suspendFunction) builtIns.getSuspendFunction(parameterCount) else builtIns.getFunction(parameterCount)
