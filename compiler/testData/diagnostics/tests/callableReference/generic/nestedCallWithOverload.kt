@@ -3,7 +3,9 @@
 
 fun foo(i: Int) {}
 fun foo(s: String) {}
+fun <K> id1(x: K): K = x
 fun <K> id(x: K): K = x
+fun <L> id2(x: L): L = x
 fun <T> baz(x: T, y: T): T = TODO()
 
 fun test() {
@@ -21,6 +23,6 @@ fun test() {
     baz(id(::foo), id<(Int) -> Unit>(id(::foo)))
 
     baz(id { it.inv() }, id<(Int) -> Unit> { })
-    baz(id { x -> x.inv() }, id { x: Int -> })
-    baz(id { it.inv() }, id { x: Int -> })
+    baz(id1 { x -> x.inv() }, id2 { <!NI;UNUSED_ANONYMOUS_PARAMETER!>x<!>: Int -> })
+    baz(id1 { it.inv() }, id2 { <!NI;UNUSED_ANONYMOUS_PARAMETER!>x<!>: Int -> })
 }
