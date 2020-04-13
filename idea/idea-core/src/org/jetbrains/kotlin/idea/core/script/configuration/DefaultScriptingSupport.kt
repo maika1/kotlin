@@ -359,7 +359,7 @@ abstract class DefaultScriptingSupportBase(val project: Project) : ScriptingSupp
     }
 
     private fun hasNotCachedRoots(configuration: ScriptCompilationConfigurationWrapper): Boolean {
-        return classpathRoots.hasNotCachedRoots(configuration)
+        return classpathRoots.hasNotCachedRoots(DefaultClassRootsCache.extractRoots(project, configuration))
     }
 
     init {
@@ -382,8 +382,8 @@ abstract class DefaultScriptingSupportBase(val project: Project) : ScriptingSupp
     private val classpathRootsLock = ReentrantLock()
 
     @Volatile
-    private var _classpathRoots: ScriptClassRootsCache? = null
-    private val classpathRoots: ScriptClassRootsCache
+    private var _classpathRoots: DefaultClassRootsCache? = null
+    private val classpathRoots: DefaultClassRootsCache
         get() {
             val value1 = _classpathRoots
             if (value1 != null) return value1
@@ -392,7 +392,10 @@ abstract class DefaultScriptingSupportBase(val project: Project) : ScriptingSupp
                 val value2 = _classpathRoots
                 if (value2 != null) return value2
 
-                val value3 = ScriptClassRootsCache(project, cache.allApplied())
+                val value3 = DefaultClassRootsCache(
+                    project,
+                    cache.allApplied()
+                )
                 _classpathRoots = value3
                 return value3
             }
@@ -413,9 +416,10 @@ abstract class DefaultScriptingSupportBase(val project: Project) : ScriptingSupp
      * Loads script configuration if classpath roots don't contain [file] yet
      */
     private fun getActualClasspathRoots(file: VirtualFile): ScriptClassRootsCache {
-        if (classpathRoots.contains(file)) {
-            return classpathRoots
-        }
+        // todo
+//        if (classpathRoots.contains(file)) {
+//            return classpathRoots
+//        }
 
         getOrLoadConfiguration(file)
 
@@ -424,7 +428,7 @@ abstract class DefaultScriptingSupportBase(val project: Project) : ScriptingSupp
 
     override fun getScriptSdk(file: VirtualFile): Sdk? = getActualClasspathRoots(file).getScriptSdk(file)
 
-    override fun getFirstScriptsSdk(): Sdk? = classpathRoots.firstScriptSdk
+    override fun getFirstScriptsSdk(): Sdk? = classpathRoots.scriptSdk
 
     override fun getScriptDependenciesClassFilesScope(file: VirtualFile): GlobalSearchScope =
         getActualClasspathRoots(file).getScriptDependenciesClassFilesScope(file)

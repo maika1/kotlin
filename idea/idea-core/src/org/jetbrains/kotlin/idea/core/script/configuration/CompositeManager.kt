@@ -23,6 +23,7 @@ import org.jetbrains.kotlin.idea.core.script.ScriptDependenciesModificationTrack
 import org.jetbrains.kotlin.idea.core.script.configuration.listener.ScriptChangesNotifier
 import org.jetbrains.kotlin.idea.core.script.configuration.listener.ScriptConfigurationUpdater
 import org.jetbrains.kotlin.idea.core.script.configuration.loader.ScriptConfigurationLoader
+import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRootsCache
 import org.jetbrains.kotlin.idea.core.script.configuration.utils.getKtFile
 import org.jetbrains.kotlin.idea.core.util.EDT
 import org.jetbrains.kotlin.psi.KtFile
@@ -37,6 +38,8 @@ interface ScriptingSupport {
     fun getOrLoadConfiguration(virtualFile: VirtualFile, preloadedKtFile: KtFile? = null): ScriptCompilationConfigurationWrapper?
 
     val updater: ScriptConfigurationUpdater
+
+    val rootsCache: ScriptClassRootsCache
 
     fun getFirstScriptsSdk(): Sdk?
     fun getScriptDependenciesClassFilesScope(file: VirtualFile): GlobalSearchScope

@@ -3,7 +3,7 @@
  * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
-package org.jetbrains.kotlin.idea.core.script.configuration.utils
+package org.jetbrains.kotlin.idea.scripting.gradle
 
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
@@ -15,12 +15,12 @@ import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.NonClasspathDirectoriesScope
-import com.intellij.util.containers.ConcurrentFactoryMap
 import com.intellij.util.containers.SLRUMap
 import com.intellij.util.io.URLUtil
 import org.jetbrains.kotlin.codegen.inline.getOrPut
 import org.jetbrains.kotlin.idea.core.script.ScriptConfigurationManager
 import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRootsStorage
+import org.jetbrains.kotlin.idea.scripting.gradle.importing.GradleKtsContext
 import org.jetbrains.kotlin.idea.util.getProjectJdkTableSafe
 import org.jetbrains.kotlin.scripting.resolve.ScriptCompilationConfigurationWrapper
 import java.io.File
@@ -83,10 +83,6 @@ abstract class ScriptClassRootsCache(
         return@lazy roots.sdks.firstOrNull()
     }
 
-    abstract fun getScriptSdk(file: VirtualFile): Sdk?
-
-    abstract val firstScriptSdk: Sdk?
-
     val allDependenciesClassFiles by lazy {
         ScriptClassRootsStorage.getInstance(project).loadClasspathRoots()
     }
@@ -125,7 +121,7 @@ abstract class ScriptClassRootsCache(
     companion object {
         const val MAX_SCRIPTS_CACHED = 50
 
-        fun toStringValues(prop: Collection<File>): Set<String> {
+        private fun toStringValues(prop: Collection<File>): Set<String> {
             return prop.mapNotNull {
                 when {
                     it.isDirectory -> it.absolutePath
@@ -135,48 +131,6 @@ abstract class ScriptClassRootsCache(
             }.toSet()
         }
 
-        fun getScriptSdkOfDefault(javaHomeStr: File?, project: Project): Sdk? {
-            return getScriptSdk(javaHomeStr) ?: ScriptConfigurationManager.getScriptDefaultSdk(project)
-        }
-
-        fun getScriptSdk(javaHomeStr: File?): Sdk? {
-            // workaround for mismatched gradle wrapper and plugin version
-            val javaHome = try {
-                javaHomeStr?.let { VfsUtil.findFileByIoFile(it, true) }
-            } catch (e: Throwable) {
-                null
-            } ?: return null
-
-            return getProjectJdkTableSafe().allJdks.find { it.homeDirectory == javaHome }
-        }
-
-        fun Sdk.isAlreadyIndexed(project: Project): Boolean {
-            return ModuleManager.getInstance(project).modules.any { ModuleRootManager.getInstance(it).sdk == this }
-        }
-
-    }
-}
-
-internal class DefaultClassRootsCache(
-    project: Project,
-    private val all: Map<VirtualFile, ScriptCompilationConfigurationWrapper>
-) : ScriptClassRootsCache(project, extractRoots(all, project)) {
-    override val getter: (VirtualFile) -> ScriptCompilationConfigurationWrapper?
-        get() = { all[it] }
-
-    private val scriptsSdksCache: Map<VirtualFile, Sdk?> =
-        ConcurrentFactoryMap.createWeakMap { file ->
-            return@createWeakMap getScriptSdk(all[file]?.javaHome) ?: ScriptConfigurationManager.getScriptDefaultSdk(project)
-        }
-
-    override fun getScriptSdk(file: VirtualFile): Sdk? = scriptsSdksCache[file]
-
-    override val firstScriptSdk: Sdk? by lazy {
-        val firstCachedScript = all.keys.firstOrNull() ?: return@lazy null
-        return@lazy getScriptSdk(firstCachedScript)
-    }
-
-    companion object {
         fun extractRoots(
             project: Project,
             configuration: ScriptCompilationConfigurationWrapper
@@ -197,27 +151,47 @@ internal class DefaultClassRootsCache(
             )
         }
 
-        fun extractRoots(all: Map<VirtualFile, ScriptCompilationConfigurationWrapper>, project: Project): ScriptClassRootsStorage.Companion.ScriptClassRoots {
-            val classpath = mutableSetOf<File>()
-            val sources = mutableSetOf<File>()
-            val sdks = mutableSetOf<Sdk>()
+        fun getScriptSdkOfDefault(javaHomeStr: File?, project: Project): Sdk? {
+            return getScriptSdk(javaHomeStr) ?: ScriptConfigurationManager.getScriptDefaultSdk(project)
+        }
 
-            for ((_, configuration) in all) {
-                val scriptSdk = getScriptSdk(configuration.javaHome)
-                if (scriptSdk != null && !scriptSdk.isAlreadyIndexed(project)) {
-                    sdks.add(scriptSdk)
-                }
+        fun getScriptSdk(javaHomeStr: File?): Sdk? {
+            // workaround for mismatched gradle wrapper and plugin version
+            val javaHome = try {
+                javaHomeStr?.let { VfsUtil.findFileByIoFile(it, true) }
+            } catch (e: Throwable) {
+                null
+            } ?: return null
 
-                classpath.addAll(configuration.dependenciesClassPath)
-                sources.addAll(configuration.dependenciesSources)
-            }
+            return getProjectJdkTableSafe().allJdks.find { it.homeDirectory == javaHome }
+        }
 
-            return ScriptClassRootsStorage.Companion.ScriptClassRoots(
-                toStringValues(classpath),
-                toStringValues(sources),
-                sdks
-            )
+        private fun Sdk.isAlreadyIndexed(project: Project): Boolean {
+            return ModuleManager.getInstance(project).modules.any { ModuleRootManager.getInstance(it).sdk == this }
         }
 
     }
+}
+
+internal class GradleClassRootsCache(
+    context: GradleKtsContext,
+    classFilePath: MutableSet<String>,
+    sourcePath: MutableSet<String>,
+    override val getter: (VirtualFile) -> ScriptCompilationConfigurationWrapper?
+) : ScriptClassRootsCache(context.project, extractRoots(context, classFilePath, sourcePath)) {
+
+    companion object {
+        fun extractRoots(
+            context: GradleKtsContext,
+            classFilePath: MutableSet<String>,
+            sourcePath: MutableSet<String>
+        ): ScriptClassRootsStorage.Companion.ScriptClassRoots {
+            return ScriptClassRootsStorage.Companion.ScriptClassRoots(
+                classFilePath,
+                sourcePath,
+                getScriptSdk(context.javaHome)?.let { setOf(it) } ?: setOf()
+            )
+        }
+    }
+
 }

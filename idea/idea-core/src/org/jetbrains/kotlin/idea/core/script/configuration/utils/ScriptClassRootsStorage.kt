@@ -14,7 +14,9 @@ import com.intellij.openapi.vfs.StandardFileSystems
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.io.URLUtil
 import com.intellij.util.xmlb.XmlSerializerUtil
+import org.jetbrains.kotlin.idea.core.script.ScriptConfigurationManager
 import org.jetbrains.kotlin.idea.core.script.debug
+import org.jetbrains.kotlin.scripting.resolve.ScriptCompilationConfigurationWrapper
 import java.io.File
 
 @State(
@@ -71,11 +73,11 @@ class ScriptClassRootsStorage : PersistentStateComponent<ScriptClassRootsStorage
     }
 
     fun containsAll(configuration: ScriptClassRoots): Boolean {
-        if (!classpath.containsAll(toStringValues(configuration.classpathFiles))) {
+        if (!classpath.containsAll(configuration.classpathFiles)) {
             debug { "class roots were changed: old = $classpath, new = ${configuration.classpathFiles}" }
             return false
         }
-        if (!sources.containsAll(toStringValues(configuration.sourcesFiles))) {
+        if (!sources.containsAll(configuration.sourcesFiles)) {
             debug { "source roots were changed: old = $sources, new = ${configuration.sourcesFiles}" }
             return false
         }
@@ -88,8 +90,8 @@ class ScriptClassRootsStorage : PersistentStateComponent<ScriptClassRootsStorage
 
     fun save(configuration: ScriptClassRoots) {
         // TODO: do not drop all storage on save: KT-34444
-        classpath = toStringValues(configuration.classpathFiles)
-        sources = toStringValues(configuration.sourcesFiles)
+        classpath = configuration.classpathFiles
+        sources = configuration.sourcesFiles
 
         sdks = toStringNames(configuration.sdks)
     }
@@ -107,9 +109,9 @@ class ScriptClassRootsStorage : PersistentStateComponent<ScriptClassRootsStorage
             ServiceManager.getService(project, ScriptClassRootsStorage::class.java)
 
         data class ScriptClassRoots(
-            val classpathFiles: List<File>,
-            val sourcesFiles: List<File>,
-            val sdks: List<Sdk>
+            val classpathFiles: Set<String>,
+            val sourcesFiles: Set<String>,
+            val sdks: Set<Sdk>
         )
     }
 }
