@@ -6,4 +6,4 @@ public fun foo(/*0*/ s: kotlin.String): kotlin.Unit
 public fun </*0*/ K> id(/*0*/ x: K): K
 public fun </*0*/ K> id1(/*0*/ x: K): K
 public fun </*0*/ L> id2(/*0*/ x: L): L
-public fun test(): kotlin.Unit
+public fun test1(): kotlin.Unit

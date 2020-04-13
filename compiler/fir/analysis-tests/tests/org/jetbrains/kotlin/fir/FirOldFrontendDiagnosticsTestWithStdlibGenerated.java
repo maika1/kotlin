@@ -1911,6 +1911,11 @@ public class FirOldFrontendDiagnosticsTestWithStdlibGenerated extends AbstractFi
             runTest("compiler/testData/diagnostics/testsWithStdLib/inference/kt4975.kt");
         }
 
+        @TestMetadata("postonedAnalysisOfDeepLambda.kt")
+        public void testPostonedAnalysisOfDeepLambda() throws Exception {
+            runTest("compiler/testData/diagnostics/testsWithStdLib/inference/postonedAnalysisOfDeepLambda.kt");
+        }
+
         @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve")
         @TestDataPath("$PROJECT_ROOT")
         @RunWith(JUnit3RunnerWithInners.class)
