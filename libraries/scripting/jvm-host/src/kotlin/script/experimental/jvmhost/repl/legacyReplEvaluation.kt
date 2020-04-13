@@ -40,7 +40,7 @@ class JvmReplEvaluator(
         val compiledScriptList = (compileResult.data as? LinkedSnippetImpl<*>)
             ?: return ReplEvalResult.Error.CompileTime("Unable to access compiled list script: ${compileResult.data}")
 
-        val compiledScript = (compiledScriptList.get() as? KJvmCompiledScript<*>)
+        val compiledScript = (compiledScriptList.get() as? KJvmCompiledScript)
             ?: return ReplEvalResult.Error.CompileTime("Unable to access compiled script: ${compiledScriptList.get()}")
 
 

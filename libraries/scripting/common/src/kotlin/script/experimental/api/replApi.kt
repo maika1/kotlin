@@ -12,7 +12,7 @@ import kotlin.script.experimental.util.LinkedSnippet
  * [ReplCompiler.compile] and [ReplCompiler.lastCompiledSnippet], boxed into
  * [LinkedSnippet] container
  */
-typealias CompiledSnippet = CompiledScript<Any>
+typealias CompiledSnippet = CompiledScript
 
 /**
  * Type for [ReplCompleter.complete] return value

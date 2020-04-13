@@ -377,7 +377,7 @@ private inline fun <reified R> assertEvalResultIs(repl: JvmTestRepl, line: Strin
     TestCase.assertTrue(valueResult.result is R)
 }
 
-private fun checkCompile(repl: JvmTestRepl, line: String): LinkedSnippet<KJvmCompiledScript<Any>>? {
+private fun checkCompile(repl: JvmTestRepl, line: String): LinkedSnippet<KJvmCompiledScript>? {
     val codeLine = repl.nextCodeLine(line)
     val compileResult = repl.compile(codeLine)
     return compileResult.valueOrNull()

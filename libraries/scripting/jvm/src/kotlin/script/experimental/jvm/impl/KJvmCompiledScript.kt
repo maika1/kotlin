@@ -43,7 +43,7 @@ internal class KJvmCompiledScriptData(
     }
 }
 
-interface IKJvmCompiledScript<out ScriptBase : Any> : CompiledScript<ScriptBase> {
+interface IKJvmCompiledScript : CompiledScript {
     var compiledModule: KJvmCompiledModule?
     val scriptClassFQName: String
 }

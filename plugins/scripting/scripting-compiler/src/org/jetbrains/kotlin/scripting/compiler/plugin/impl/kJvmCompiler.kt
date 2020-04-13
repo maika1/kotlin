@@ -34,12 +34,12 @@ import kotlin.script.experimental.util.add
 open class KJvmReplCompilerBase<AnalyzerT : ReplCodeAnalyzerBase> protected constructor(
     protected val hostConfiguration: ScriptingHostConfiguration = defaultJvmScriptingHostConfiguration,
     val initAnalyzer: (SharedScriptCompilationContext) -> AnalyzerT
-) : ReplCompiler<KJvmCompiledScript<Any>>, ScriptCompiler {
+) : ReplCompiler<KJvmCompiledScript>, ScriptCompiler {
     val state = JvmReplCompilerState({ createReplCompilationState(it, initAnalyzer) })
     val history = JvmReplCompilerStageHistory(state)
     protected val scriptPriority = AtomicInteger()
 
-    override var lastCompiledSnippet: LinkedSnippetImpl<KJvmCompiledScript<Any>>? = null
+    override var lastCompiledSnippet: LinkedSnippetImpl<KJvmCompiledScript>? = null
         protected set
 
     fun createReplCompilationState(
@@ -60,7 +60,7 @@ open class KJvmReplCompilerBase<AnalyzerT : ReplCodeAnalyzerBase> protected cons
     override suspend fun compile(
         snippets: Iterable<SourceCode>,
         configuration: ScriptCompilationConfiguration
-    ): ResultWithDiagnostics<LinkedSnippet<KJvmCompiledScript<Any>>> =
+    ): ResultWithDiagnostics<LinkedSnippet<KJvmCompiledScript>> =
         snippets.map { snippet ->
             withMessageCollector(snippet) { messageCollector ->
                 val initialConfiguration = configuration.refineBeforeParsing(snippet).valueOr {
@@ -164,7 +164,7 @@ open class KJvmReplCompilerBase<AnalyzerT : ReplCodeAnalyzerBase> protected cons
     override suspend fun invoke(
         script: SourceCode,
         scriptCompilationConfiguration: ScriptCompilationConfiguration
-    ): ResultWithDiagnostics<CompiledScript<*>> {
+    ): ResultWithDiagnostics<CompiledScript> {
         return when (val res = compile(script, scriptCompilationConfiguration)) {
             is ResultWithDiagnostics.Success -> res.value.get().asSuccess(res.reports)
             is ResultWithDiagnostics.Failure -> res
